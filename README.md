@@ -117,6 +117,14 @@ table fills in colour-coded by object, a chat panel answers questions about the
 scene, and a distance tool draws measured lines between selected objects on a
 canvas overlay.
 
+You can run the interface with this command:
+```
+cd Interface
+uvicorn app:app --host 127.0.0.1 --port 8000
+```
+<img width="1889" height="947" alt="image" src="https://github.com/user-attachments/assets/54af6ff3-0705-4819-9e64-f5765caf1779" />
+Also, you can measure the distance between them.
+
 ## Stack
 
 Qwen2.5-VL-3B-Instruct, PEFT/LoRA, PyTorch, Transformers, FastAPI
