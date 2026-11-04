@@ -1,4 +1,4 @@
-# Structured-Scene-Extraction-with-a-Fine-Tuned-VLM
+# Structured-Scene-Extraction-with-a-Fine-Tuned-VLM || Qwen2.5-VL-3B
 A vision language model fine-tuned to turn an image into structured JSON, with follow-up question answering and distance measurement over the extracted objects.
 
 ## What it does
