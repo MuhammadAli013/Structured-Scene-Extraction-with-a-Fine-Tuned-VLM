@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scene Reader</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0e1522; --slate:#1b2536; --line:#e3e7ee; --line-2:#eef1f6;
+  --canvas:#f5f7fa; --paper:#ffffff; --muted:#6b7688; --muted-2:#9aa4b4;
+  --accent:#3a5bd9; --accent-2:#7a4fd0; --accent-soft:#eaeffc; --good:#1d9e75;
+  --radius:14px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--canvas);color:var(--ink);
+  -webkit-font-smoothing:antialiased;display:flex;flex-direction:column;min-height:100%}
+header{padding:22px 34px;border-bottom:1px solid var(--line);background:var(--paper);
+  display:flex;align-items:baseline;gap:14px;position:relative}
+header::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2) 60%,transparent)}
+header .mark{font-weight:600;font-size:17px;letter-spacing:-0.01em}
+header .mark b{background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  -webkit-background-clip:text;background-clip:text;color:transparent}
+header .sub{font-size:13px;color:var(--muted)}
+main{flex:1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:1px;background:var(--line)}
+@media (max-width:960px){main{grid-template-columns:1fr}}
+.pane{background:var(--canvas);padding:26px 30px;min-width:0}
+.pane.right{background:var(--paper);display:flex;flex-direction:column}
+
+.stage-wrap{position:relative}
+.stage{border:1.5px dashed #c4ccd9;border-radius:var(--radius);background:var(--paper);
+  aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;position:relative;
+  overflow:hidden;transition:border-color .18s,background .18s;cursor:pointer}
+.stage.drag{border-color:var(--accent);background:var(--accent-soft)}
+.stage.has-image{border-style:solid;border-color:var(--line);cursor:default}
+.stage img{width:100%;height:100%;object-fit:contain;display:none}
+.stage.has-image img{display:block}
+#overlay{position:absolute;inset:0;pointer-events:none}
+.drop-hint{text-align:center;padding:20px;pointer-events:none}
+.drop-hint .icon{width:46px;height:46px;margin:0 auto 14px;border-radius:12px;
+  background:linear-gradient(135deg,var(--accent-soft),#f1ebfb);display:flex;align-items:center;justify-content:center}
+.drop-hint .icon svg{width:22px;height:22px;stroke:var(--accent)}
+.drop-hint h2{margin:0 0 4px;font-size:16px;font-weight:600}
+.drop-hint p{margin:0;font-size:13px;color:var(--muted)}
+.stage.has-image .drop-hint{display:none}
+
+.stage-meta{display:flex;align-items:center;gap:10px;margin-top:14px;font-size:13px;color:var(--muted);min-height:20px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--muted-2)}
+.dot.live{background:var(--good);box-shadow:0 0 0 3px rgba(29,158,117,.15)}
+.replace{margin-left:auto;font-size:12.5px;color:var(--accent);background:none;border:none;
+  cursor:pointer;font-family:inherit;padding:4px 2px}
+.replace:hover{text-decoration:underline}
+
+.toolbar{display:flex;gap:10px;align-items:center;margin-top:16px;flex-wrap:wrap}
+.btn{border:none;border-radius:11px;padding:9px 16px;font-family:inherit;font-size:13.5px;
+  font-weight:500;cursor:pointer;transition:opacity .15s,background .15s}
+.btn.primary{color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent-2))}
+.btn.primary:hover{opacity:.92}
+.btn.ghost{background:#eef1f6;color:var(--slate)}
+.btn.ghost:hover{background:#e4e8ef}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.tool-hint{font-size:12.5px;color:var(--muted-2)}
+
+.section-label{font-size:12px;font-weight:600;color:var(--muted);display:flex;align-items:center;gap:8px;margin:0 0 12px}
+.section-label .count{color:#fff;background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  padding:1px 9px;border-radius:20px;font-size:12px}
+.table-wrap{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;
+  background:var(--paper);box-shadow:0 1px 2px rgba(20,30,55,.03)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{text-align:left;font-weight:500;color:var(--muted);padding:10px 12px;
+  border-bottom:1px solid var(--line);background:#fafbfd;font-size:12px}
+tbody td{padding:9px 12px;border-bottom:1px solid var(--line-2)}
+tbody tr:last-child td{border-bottom:none}
+tbody tr{opacity:0;transform:translateY(4px);animation:row .3s ease forwards}
+tbody tr:hover td{background:#fafbff}
+tbody tr.sel td{background:#f2f6ff}
+@keyframes row{to{opacity:1;transform:none}}
+.chk{width:34px;text-align:center}
+.chk input{width:15px;height:15px;accent-color:var(--accent);cursor:pointer}
+.swatch{display:inline-flex;align-items:center;gap:7px;text-transform:capitalize;font-weight:500}
+.swatch i{width:13px;height:13px;border-radius:4px;border:1px solid rgba(0,0,0,.12)}
+.pill-a{display:inline-block;padding:2px 9px;border-radius:20px;font-size:12px;text-transform:capitalize;font-weight:500}
+.sz-big{background:#e6f4ec;color:#1a6b45}
+.sz-small{background:#f0eef8;color:#5a3f9c}
+.cap{text-transform:capitalize}
+.mono{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--slate)}
+.empty-row td{color:var(--muted-2);text-align:center;padding:34px}
+
+.chat{flex:1;display:flex;flex-direction:column;margin-top:24px;min-height:0}
+.chat-head{font-size:12px;font-weight:600;color:var(--muted);margin-bottom:12px}
+.stream{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding-right:4px;min-height:110px}
+.msg{max-width:82%;padding:10px 14px;border-radius:12px;font-size:14px;line-height:1.5}
+.msg.you{align-self:flex-end;color:#fff;border-bottom-right-radius:4px;
+  background:linear-gradient(135deg,var(--accent),var(--accent-2))}
+.msg.bot{align-self:flex-start;background:#f0f3f8;color:var(--ink);border-bottom-left-radius:4px;border-left:3px solid var(--accent)}
+.msg.bot.thinking{color:var(--muted);border-left-color:var(--muted-2)}
+.chat-empty{color:var(--muted-2);font-size:13.5px;text-align:center;margin:auto 0}
+.composer{display:flex;gap:10px;margin-top:16px}
+.composer input{flex:1;border:1px solid var(--line);border-radius:11px;padding:12px 14px;
+  font-family:inherit;font-size:14px;color:var(--ink);outline:none;transition:border-color .15s;background:var(--paper)}
+.composer input:focus{border-color:var(--accent)}
+.composer input:disabled{background:#f6f7fa;color:var(--muted-2)}
+.composer button{border:none;color:#fff;border-radius:11px;padding:0 20px;font-family:inherit;
+  font-size:14px;font-weight:500;cursor:pointer;background:linear-gradient(135deg,var(--accent),var(--accent-2));transition:opacity .15s}
+.composer button:hover{opacity:.92}
+.composer button:disabled{background:#c4ccd9;cursor:not-allowed}
+.pill{display:inline-block;width:6px;height:6px;border-radius:50%;background:currentColor;margin:0 2px;animation:blink 1.2s infinite}
+.pill:nth-child(2){animation-delay:.2s}.pill:nth-child(3){animation-delay:.4s}
+@keyframes blink{0%,60%,100%{opacity:.25}30%{opacity:1}}
+</style>
+</head>
+<body>
+<header>
+  <div class="mark">Scene<b>Reader</b></div>
+  <div class="sub">Drop an image. Read its objects. Measure and ask.</div>
+</header>
+
+<main>
+  <section class="pane">
+    <div class="stage-wrap">
+      <div class="stage" id="stage">
+        <div class="drop-hint">
+          <div class="icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
+          </div>
+          <h2>Drop a scene here</h2>
+          <p>or click to choose an image</p>
+        </div>
+        <img id="preview" alt="">
+        <canvas id="overlay"></canvas>
+      </div>
+    </div>
+    <div class="stage-meta">
+      <span class="dot" id="statusDot"></span>
+      <span id="statusText">No image loaded</span>
+      <button class="replace" id="replaceBtn" style="display:none">Replace</button>
+    </div>
+    <div class="toolbar">
+      <button class="btn primary" id="distBtn" disabled>Calculate distance</button>
+      <button class="btn ghost" id="clearBtn" disabled>Clear lines</button>
+      <span class="tool-hint">Tick rows to measure only those. None ticked measures all.</span>
+    </div>
+    <input type="file" id="fileInput" accept="image/*" hidden>
+  </section>
+
+  <section class="pane right">
+    <div class="section-label">Detected objects <span class="count" id="objCount" style="display:none">0</span></div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th class="chk"></th><th>Color</th><th>Shape</th><th>Size</th>
+            <th>Center</th><th>Area</th><th>Dimension</th>
+          </tr>
+        </thead>
+        <tbody id="objBody">
+          <tr class="empty-row"><td colspan="7">Objects appear here once a scene is read.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="chat">
+      <div class="chat-head">Ask about the scene</div>
+      <div class="stream" id="stream">
+        <div class="chat-empty">Load a scene, then ask a question about it.</div>
+      </div>
+      <div class="composer">
+        <input id="chatInput" placeholder="e.g. How many red squares are there?" disabled>
+        <button id="sendBtn" disabled>Ask</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+const COLORS={gray:"#8b8f96",red:"#d0342c",blue:"#2f5fd0",green:"#3aa44a",
+  brown:"#8a5a2b",purple:"#7b4fc0",cyan:"#2bb8c4",yellow:"#e0b020"};
+
+const stage=document.getElementById('stage');
+const fileInput=document.getElementById('fileInput');
+const preview=document.getElementById('preview');
+const overlay=document.getElementById('overlay');
+const statusDot=document.getElementById('statusDot');
+const statusText=document.getElementById('statusText');
+const replaceBtn=document.getElementById('replaceBtn');
+const objBody=document.getElementById('objBody');
+const objCount=document.getElementById('objCount');
+const stream=document.getElementById('stream');
+const chatInput=document.getElementById('chatInput');
+const sendBtn=document.getElementById('sendBtn');
+const distBtn=document.getElementById('distBtn');
+const clearBtn=document.getElementById('clearBtn');
+
+let currentObjects=[];
+
+stage.addEventListener('click',()=>{ if(!stage.classList.contains('has-image')) fileInput.click(); });
+replaceBtn.addEventListener('click',()=>fileInput.click());
+fileInput.addEventListener('change',e=>{ if(e.target.files[0]) loadImage(e.target.files[0]); });
+['dragover','dragenter'].forEach(ev=>stage.addEventListener(ev,e=>{e.preventDefault();stage.classList.add('drag');}));
+['dragleave','drop'].forEach(ev=>stage.addEventListener(ev,e=>{e.preventDefault();stage.classList.remove('drag');}));
+stage.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f&&f.type.startsWith('image/'))loadImage(f);});
+
+function loadImage(file){
+  preview.src=URL.createObjectURL(file);
+  stage.classList.add('has-image');
+  replaceBtn.style.display='inline';
+  setStatus('reading','Reading scene');
+  resetTable(true); resetChat(); clearLines();
+  distBtn.disabled=true; clearBtn.disabled=true;
+  currentObjects=[];
+  extract(file);
+}
+function resetChat(){stream.innerHTML='<div class="chat-empty">Reading the new scene…</div>';chatInput.value='';chatInput.disabled=true;sendBtn.disabled=true;}
+function setStatus(kind,text){statusText.textContent=text;statusDot.className='dot'+(kind==='live'?' live':'');}
+function resetTable(loading){objBody.innerHTML=loading?'<tr class="empty-row"><td colspan="7">Reading objects from the scene…</td></tr>':'<tr class="empty-row"><td colspan="7">Objects appear here once a scene is read.</td></tr>';objCount.style.display='none';}
+
+async function extract(file){
+  const fd=new FormData(); fd.append('file',file);
+  try{
+    const res=await fetch('/extract',{method:'POST',body:fd});
+    const data=await res.json();
+    if(!data.ok||!data.objects.length){objBody.innerHTML='<tr class="empty-row"><td colspan="7">Could not read objects from this image.</td></tr>';setStatus('','Read failed');return;}
+    currentObjects=data.objects;
+    renderObjects(data.objects);
+    setStatus('live',data.objects.length+' objects detected');
+    distBtn.disabled=false;
+    enableChat();
+  }catch(err){objBody.innerHTML='<tr class="empty-row"><td colspan="7">Server not reachable.</td></tr>';setStatus('','Connection error');}
+}
+
+function szClass(s){s=(s||'').toLowerCase();return s==='big'?'sz-big':s==='small'?'sz-small':'';}
+
+function renderObjects(objects){
+  objBody.innerHTML='';
+  objects.forEach((o,i)=>{
+    const tr=document.createElement('tr');
+    tr.style.animationDelay=(i*45)+'ms';
+    tr.dataset.idx=i;
+    const c=(o.color||'').toLowerCase();
+    const swatch=COLORS[c]||'#bbb';
+    const center=Array.isArray(o.center)?o.center.join(', '):'—';
+    const dim=o.dimension?(o.dimension.name+' '+o.dimension.value):'—';
+    tr.innerHTML=
+      '<td class="chk"><input type="checkbox" data-idx="'+i+'"></td>'+
+      '<td><span class="swatch"><i style="background:'+swatch+'"></i>'+(o.color||'—')+'</span></td>'+
+      '<td class="cap">'+(o.shape||'—')+'</td>'+
+      '<td><span class="pill-a '+szClass(o.size)+'">'+(o.size||'—')+'</span></td>'+
+      '<td class="mono">'+center+'</td>'+
+      '<td class="mono">'+(o.area!=null?o.area:'—')+'</td>'+
+      '<td class="mono">'+dim+'</td>';
+    objBody.appendChild(tr);
+  });
+  objBody.querySelectorAll('input[type=checkbox]').forEach(cb=>{
+    cb.addEventListener('change',e=>{
+      e.target.closest('tr').classList.toggle('sel',e.target.checked);
+    });
+  });
+  objCount.textContent=objects.length; objCount.style.display='inline';
+}
+
+/* ---------- distance overlay ---------- */
+function imgRect(){
+  // map native image content box inside the stage (object-fit: contain)
+  const nw=preview.naturalWidth||512, nh=preview.naturalHeight||512;
+  const W=stage.clientWidth, H=stage.clientHeight;
+  const scale=Math.min(W/nw,H/nh);
+  const rw=nw*scale, rh=nh*scale;
+  return {scale, offsetX:(W-rw)/2, offsetY:(H-rh)/2, W, H};
+}
+function toDisplay(pt){
+  const r=imgRect();
+  return [r.offsetX+pt[0]*r.scale, r.offsetY+pt[1]*r.scale];
+}
+function sizeCanvas(){
+  overlay.width=stage.clientWidth; overlay.height=stage.clientHeight;
+}
+function clearLines(){
+  sizeCanvas();
+  const ctx=overlay.getContext('2d');
+  ctx.clearRect(0,0,overlay.width,overlay.height);
+  clearBtn.disabled=true;
+}
+function drawDistances(){
+  sizeCanvas();
+  const ctx=overlay.getContext('2d');
+  ctx.clearRect(0,0,overlay.width,overlay.height);
+
+  const checked=[...objBody.querySelectorAll('input:checked')].map(cb=>+cb.dataset.idx);
+  const idxs = checked.length>=2 ? checked : currentObjects.map((_,i)=>i);
+  if(idxs.length<2){ return; }
+
+  for(let a=0;a<idxs.length;a++){
+    for(let b=a+1;b<idxs.length;b++){
+      const o1=currentObjects[idxs[a]], o2=currentObjects[idxs[b]];
+      const p1=toDisplay(o1.center), p2=toDisplay(o2.center);
+      const dist=Math.round(Math.hypot(o1.center[0]-o2.center[0], o1.center[1]-o2.center[1]));
+
+      ctx.save();
+      ctx.strokeStyle='#111';
+      ctx.lineWidth=1.4;
+      ctx.setLineDash([5,4]);
+      ctx.beginPath();
+      ctx.moveTo(p1[0],p1[1]);
+      ctx.lineTo(p2[0],p2[1]);
+      ctx.stroke();
+      ctx.restore();
+
+      const mx=(p1[0]+p2[0])/2, my=(p1[1]+p2[1])/2;
+      const label=String(dist);
+      ctx.font='500 12px "JetBrains Mono", monospace';
+      const tw=ctx.measureText(label).width;
+      ctx.fillStyle='rgba(255,255,255,.92)';
+      ctx.fillRect(mx-tw/2-4, my-9, tw+8, 17);
+      ctx.strokeStyle='#e0e0e0'; ctx.lineWidth=1; ctx.setLineDash([]);
+      ctx.strokeRect(mx-tw/2-4, my-9, tw+8, 17);
+      ctx.fillStyle='#111';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(label, mx, my);
+    }
+  }
+  clearBtn.disabled=false;
+}
+distBtn.addEventListener('click',drawDistances);
+clearBtn.addEventListener('click',clearLines);
+window.addEventListener('resize',()=>{ if(!clearBtn.disabled) drawDistances(); });
+
+/* ---------- chat ---------- */
+function enableChat(){stream.innerHTML='';chatInput.disabled=false;sendBtn.disabled=false;chatInput.focus();}
+sendBtn.addEventListener('click',send);
+chatInput.addEventListener('keydown',e=>{if(e.key==='Enter')send();});
+async function send(){
+  const q=chatInput.value.trim(); if(!q)return;
+  addMsg(q,'you'); chatInput.value=''; chatInput.disabled=true; sendBtn.disabled=true;
+  const thinking=addThinking();
+  try{
+    const fd=new FormData(); fd.append('question',q);
+    const res=await fetch('/chat',{method:'POST',body:fd});
+    const data=await res.json(); thinking.remove(); addMsg(data.answer||'—','bot');
+  }catch(err){thinking.remove();addMsg('Server not reachable.','bot');}
+  chatInput.disabled=false; sendBtn.disabled=false; chatInput.focus();
+}
+function addMsg(text,who){const d=document.createElement('div');d.className='msg '+who;d.textContent=text;stream.appendChild(d);stream.scrollTop=stream.scrollHeight;return d;}
+function addThinking(){const d=document.createElement('div');d.className='msg bot thinking';d.innerHTML='<span class="pill"></span><span class="pill"></span><span class="pill"></span>';stream.appendChild(d);stream.scrollTop=stream.scrollHeight;return d;}
+</script>
+</body>
+</html>
